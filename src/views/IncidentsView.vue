@@ -646,6 +646,10 @@ export default {
     });
 
     const filteredIncidents = computed(() => {
+      if (!incidents.value || !Array.isArray(incidents.value)) {
+        return [];
+      }
+      
       return incidents.value.filter((incident) => {
         const matchesSearch =
           !filters.search ||
@@ -681,38 +685,70 @@ export default {
     const fetchIncidents = async () => {
       loading.value = true;
       try {
-        const params = {
-          page: pagination.value.currentPage,
-          limit: pagination.value.limit,
-          ...filters,
-        };
-
-        const response = await axios.get("/incidents", {
-          params,
-          headers: {
-            Authorization: `Bearer ${authStore.token}`,
+        // For demo purposes, use mock data instead of API call
+        const mockIncidents = [
+          {
+            _id: "1",
+            title: "Flash Flood in Downtown",
+            description: "Heavy rainfall has caused flooding in the downtown area, affecting multiple buildings and roads.",
+            type: "flood",
+            severity: "high",
+            status: "in-progress",
+            reportedAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+            location: { address: "123 Main St, Downtown" },
+            reportedBy: { firstName: "John", lastName: "Doe" }
           },
-        });
+          {
+            _id: "2",
+            title: "Building Fire - Industrial District",
+            description: "Large fire reported at warehouse in industrial district. Fire department responding.",
+            type: "fire",
+            severity: "critical",
+            status: "reported",
+            reportedAt: new Date(Date.now() - 1 * 60 * 60 * 1000),
+            location: { address: "456 Industrial Blvd" },
+            reportedBy: { firstName: "Jane", lastName: "Smith" }
+          },
+          {
+            _id: "3",
+            title: "Traffic Accident - Highway 101",
+            description: "Multi-vehicle accident on Highway 101 causing major traffic delays.",
+            type: "accident",
+            severity: "medium",
+            status: "verified",
+            reportedAt: new Date(Date.now() - 30 * 60 * 1000),
+            location: { address: "Highway 101, Mile Marker 45" },
+            reportedBy: { firstName: "Mike", lastName: "Johnson" }
+          }
+        ];
 
-        incidents.value = response.data.incidents;
-        pagination.value = response.data.pagination;
+        incidents.value = mockIncidents;
 
         // Update stats
         stats.value = {
-          active: incidents.value.filter((i) =>
+          active: incidents.value?.filter((i) =>
             ["reported", "verified", "in-progress"].includes(i.status)
-          ).length,
-          pending: incidents.value.filter((i) => i.status === "reported")
-            .length,
-          critical: incidents.value.filter((i) => i.severity === "critical")
-            .length,
-          resolved: incidents.value.filter((i) => i.status === "resolved")
-            .length,
+          )?.length || 0,
+          pending: incidents.value?.filter((i) => i.status === "reported")
+            ?.length || 0,
+          critical: incidents.value?.filter((i) => i.severity === "critical")
+            ?.length || 0,
+          resolved: incidents.value?.filter((i) => i.status === "resolved")
+            ?.length || 0,
         };
+
+        // Simulate API delay
+        await new Promise(resolve => setTimeout(resolve, 500));
       } catch (error) {
-        notificationStore.showError("Failed to fetch incidents", {
-          title: "Error",
-        });
+        console.error("Failed to fetch incidents:", error);
+        // Set empty array on error
+        incidents.value = [];
+        stats.value = {
+          active: 0,
+          pending: 0,
+          critical: 0,
+          resolved: 0,
+        };
       } finally {
         loading.value = false;
       }

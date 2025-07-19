@@ -11,9 +11,7 @@ const notificationStore = useNotificationStore();
 // Reactive data
 const mobileMenuOpen = ref(false);
 const userMenuOpen = ref(false);
-const isLoading = ref(false);
 const emergencyAlert = ref(null);
-const notification = ref(null);
 const unreadMessages = ref(3); // Static demo value
 
 // Computed properties
@@ -43,26 +41,6 @@ const dismissAlert = () => {
   emergencyAlert.value = null;
 };
 
-const dismissNotification = () => {
-  notificationStore.clearNotification();
-  notification.value = null;
-};
-
-const getNotificationIcon = (type) => {
-  switch (type) {
-    case "success":
-      return "✅";
-    case "error":
-      return "❌";
-    case "warning":
-      return "⚠️";
-    case "info":
-      return "ℹ️";
-    default:
-      return "ℹ️";
-  }
-};
-
 // Demo function to simulate emergency alert
 const showDemoEmergencyAlert = () => {
   emergencyAlert.value = {
@@ -79,62 +57,22 @@ const showDemoEmergencyAlert = () => {
   }, 30000);
 };
 
-// Demo function for role switching
-const switchUserRole = (role) => {
-  authStore.switchToRole(role);
-  notificationStore.showSuccess(`Switched to ${role} view`, {
-    title: "Demo Mode",
-    duration: 2000,
-  });
-};
-
 // Lifecycle hooks
-onMounted(async () => {
-  // Start in authenticated state for demo
-  if (!authStore.isAuthenticated) {
-    // Default to admin role for demo
-    authStore.switchToRole("admin");
-  }
-
-  // Show demo notifications
-  notificationStore.showDemoNotifications();
-
+onMounted(() => {
   // Demo emergency alert after 10 seconds
   setTimeout(showDemoEmergencyAlert, 10000);
 
-  // Set up reactive notification display
-  const setupNotificationWatcher = () => {
-    notificationStore.$subscribe((mutation, state) => {
-      if (state.current && state.current !== notification.value) {
-        notification.value = state.current;
-
-        // Auto-dismiss if not persistent
-        if (!state.current.persistent && state.current.duration > 0) {
-          setTimeout(() => {
-            if (
-              notification.value &&
-              notification.value.id === state.current.id
-            ) {
-              dismissNotification();
-            }
-          }, state.current.duration);
-        }
-      } else if (!state.current) {
-        notification.value = null;
-      }
-    });
-  };
-
-  setupNotificationWatcher();
-
   // Close dropdowns when clicking outside
   document.addEventListener("click", (e) => {
-    if (!e.target.closest(".nav-dropdown")) {
+    // Close user menu if clicking outside
+    if (!e.target.closest('[data-user-menu]')) {
       userMenuOpen.value = false;
     }
+    
+    // Close mobile menu if clicking outside
     if (
-      !e.target.closest(".mobile-menu-btn") &&
-      !e.target.closest(".nav-menu")
+      !e.target.closest('[data-mobile-menu]') &&
+      !e.target.closest('[data-mobile-button]')
     ) {
       mobileMenuOpen.value = false;
     }
@@ -143,648 +81,250 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div id="app">
-    <!-- Demo Role Switcher (for prototype demonstration) -->
-    <div v-if="isAuthenticated" class="demo-controls">
-      <div class="demo-switcher">
-        <span class="demo-label">Demo Role:</span>
-        <button
-          v-for="role in ['admin', 'coordinator', 'volunteer', 'citizen']"
-          :key="role"
-          @click="switchUserRole(role)"
-          :class="['demo-btn', { active: userRole === role }]"
-        >
-          {{ role }}
-        </button>
-      </div>
-    </div>
-
+  <div class="min-h-screen bg-gray-50">
     <!-- Navigation Header -->
-    <nav class="navbar" v-if="isAuthenticated">
-      <div class="nav-container">
-        <div class="nav-brand">
-          <h2>🚨 CrisisIQ</h2>
-        </div>
+    <header v-if="isAuthenticated" class="sticky top-0 z-40 bg-white border-b border-gray-200">
+      <nav class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div class="flex h-16 items-center justify-between">
+          <!-- Logo -->
+          <div class="flex items-center">
+            <router-link to="/" class="flex items-center gap-2">
+              <span class="text-2xl">🚨</span>
+              <span class="text-xl font-bold text-gray-900">CrisisIQ</span>
+            </router-link>
+          </div>
 
-        <div class="nav-menu" :class="{ active: mobileMenuOpen }">
-          <router-link to="/dashboard" class="nav-link">
-            <i class="icon">📊</i> Dashboard
-          </router-link>
+          <!-- Desktop Navigation -->
+          <div class="hidden md:flex md:items-center md:space-x-6">
+            <router-link 
+              to="/dashboard" 
+              class="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+              :class="{ 'bg-gray-100': $route.path === '/dashboard' }"
+            >
+              <span>📊</span>
+              <span>Dashboard</span>
+            </router-link>
 
-          <router-link to="/incidents" class="nav-link">
-            <i class="icon">🚨</i> Incidents
-          </router-link>
+            <router-link 
+              to="/incidents" 
+              class="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+              :class="{ 'bg-gray-100': $route.path === '/incidents' }"
+            >
+              <span>🚨</span>
+              <span>Incidents</span>
+            </router-link>
 
-          <router-link to="/map" class="nav-link">
-            <i class="icon">🗺️</i> Map
-          </router-link>
+            <router-link 
+              to="/map" 
+              class="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+              :class="{ 'bg-gray-100': $route.path === '/map' }"
+            >
+              <span>🗺️</span>
+              <span>Map</span>
+            </router-link>
 
-          <router-link
-            to="/resources"
-            class="nav-link"
-            v-if="userRole !== 'citizen'"
-          >
-            <i class="icon">📦</i> Resources
-          </router-link>
+            <router-link 
+              v-if="userRole !== 'citizen'"
+              to="/resources" 
+              class="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+              :class="{ 'bg-gray-100': $route.path === '/resources' }"
+            >
+              <span>📦</span>
+              <span>Resources</span>
+            </router-link>
 
-          <router-link to="/shelters" class="nav-link">
-            <i class="icon">🏠</i> Shelters
-          </router-link>
+            <router-link 
+              to="/shelters" 
+              class="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+              :class="{ 'bg-gray-100': $route.path === '/shelters' }"
+            >
+              <span>🏠</span>
+              <span>Shelters</span>
+            </router-link>
 
-          <router-link
-            to="/tasks"
-            class="nav-link"
-            v-if="
-              userRole === 'volunteer' ||
-              userRole === 'coordinator' ||
-              userRole === 'admin'
-            "
-          >
-            <i class="icon">✅</i> Tasks
-          </router-link>
+            <router-link 
+              v-if="userRole === 'volunteer' || userRole === 'coordinator' || userRole === 'admin'"
+              to="/tasks" 
+              class="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+              :class="{ 'bg-gray-100': $route.path === '/tasks' }"
+            >
+              <span>✅</span>
+              <span>Tasks</span>
+            </router-link>
 
-          <router-link to="/messages" class="nav-link">
-            <i class="icon">💬</i> Messages
-            <span v-if="unreadMessages > 0" class="badge">{{
-              unreadMessages
-            }}</span>
-          </router-link>
-
-          <div class="nav-dropdown">
-            <button class="nav-link dropdown-toggle" @click="toggleUserMenu">
-              <i class="icon">👤</i> {{ user?.firstName || "User" }}
-              <span class="dropdown-arrow">▼</span>
-            </button>
-            <div class="dropdown-menu" v-if="userMenuOpen">
-              <div class="user-info">
-                <div class="user-avatar">
-                  {{ user?.firstName?.[0] }}{{ user?.lastName?.[0] }}
-                </div>
-                <div class="user-details">
-                  <div class="user-name">
-                    {{ user?.firstName }} {{ user?.lastName }}
-                  </div>
-                  <div class="user-role">{{ user?.role }}</div>
-                </div>
+            <router-link 
+              to="/messages" 
+              class="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+              :class="{ 'bg-gray-100': $route.path === '/messages' }"
+            >
+              <div class="relative">
+                <span>💬</span>
+                <span 
+                  v-if="unreadMessages > 0"
+                  class="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-xs flex items-center justify-center rounded-full"
+                >
+                  {{ unreadMessages }}
+                </span>
               </div>
-              <div class="dropdown-divider"></div>
-              <router-link to="/profile" class="dropdown-item">
-                <i class="icon">👤</i> Profile
+              <span>Messages</span>
+            </router-link>
+          </div>
+
+          <!-- User Menu -->
+          <div class="relative" data-user-menu>
+            <button 
+              @click="toggleUserMenu"
+              class="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-100 transition-colors"
+            >
+              <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                {{ user?.firstName?.charAt(0) || 'U' }}
+              </div>
+              <span class="hidden md:block text-sm font-medium text-gray-700">{{ user?.firstName || 'User' }}</span>
+            </button>
+
+            <!-- Dropdown Menu -->
+            <div 
+              v-if="userMenuOpen"
+              class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-1 border border-gray-200"
+            >
+              <router-link 
+                to="/profile"
+                class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                @click="userMenuOpen = false"
+              >
+                Profile Settings
               </router-link>
-              <router-link to="/settings" class="dropdown-item">
-                <i class="icon">⚙️</i> Settings
-              </router-link>
-              <div class="dropdown-divider"></div>
-              <button @click="logout" class="dropdown-item logout-btn">
-                <i class="icon">🚪</i> Logout
+              <button 
+                @click="logout"
+                class="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
+              >
+                Sign Out
               </button>
             </div>
           </div>
+
+          <!-- Mobile Menu Button -->
+          <button 
+            @click="toggleMobileMenu"
+            class="md:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors"
+            data-mobile-button
+          >
+            <svg 
+              class="w-6 h-6 text-gray-600" 
+              fill="none" 
+              stroke="currentColor" 
+              viewBox="0 0 24 24"
+            >
+              <path 
+                v-if="!mobileMenuOpen"
+                stroke-linecap="round" 
+                stroke-linejoin="round" 
+                stroke-width="2" 
+                d="M4 6h16M4 12h16M4 18h16"
+              />
+              <path 
+                v-else
+                stroke-linecap="round" 
+                stroke-linejoin="round" 
+                stroke-width="2" 
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
         </div>
 
-        <button class="mobile-menu-btn" @click="toggleMobileMenu">
-          <span></span>
-          <span></span>
-          <span></span>
-        </button>
-      </div>
-    </nav>
-
-    <!-- Emergency Alert Banner -->
-    <div v-if="emergencyAlert" class="emergency-alert">
-      <div class="alert-content">
-        <i class="alert-icon">🚨</i>
-        <div class="alert-text">
-          <strong>EMERGENCY ALERT:</strong> {{ emergencyAlert.message }}
+        <!-- Mobile Navigation Menu -->
+        <div 
+          v-if="mobileMenuOpen"
+          class="md:hidden py-4 space-y-2"
+          data-mobile-menu
+        >
+          <router-link 
+            v-for="(link, index) in [
+              { to: '/dashboard', icon: '📊', text: 'Dashboard' },
+              { to: '/incidents', icon: '🚨', text: 'Incidents' },
+              { to: '/map', icon: '🗺️', text: 'Map' },
+              { to: '/resources', icon: '📦', text: 'Resources', show: userRole !== 'citizen' },
+              { to: '/shelters', icon: '🏠', text: 'Shelters' },
+              { to: '/tasks', icon: '✅', text: 'Tasks', show: ['volunteer', 'coordinator', 'admin'].includes(userRole) },
+              { to: '/messages', icon: '💬', text: 'Messages' }
+            ]"
+            :key="index"
+            v-show="link.show === undefined || link.show"
+            :to="link.to"
+            class="flex items-center gap-3 px-4 py-2 text-base font-medium text-gray-700 hover:bg-gray-100 transition-colors"
+            :class="{ 'bg-gray-100': $route.path === link.to }"
+            @click="mobileMenuOpen = false"
+          >
+            <span>{{ link.icon }}</span>
+            <span>{{ link.text }}</span>
+            <span 
+              v-if="link.to === '/messages' && unreadMessages > 0"
+              class="ml-auto w-5 h-5 bg-red-500 text-white text-xs flex items-center justify-center rounded-full"
+            >
+              {{ unreadMessages }}
+            </span>
+          </router-link>
         </div>
-        <button @click="dismissAlert" class="alert-close">×</button>
-      </div>
-    </div>
+      </nav>
+    </header>
 
     <!-- Main Content -->
-    <main class="main-content" :class="{ 'no-nav': !isAuthenticated }">
-      <router-view />
-    </main>
-
-    <!-- Loading Overlay -->
-    <div v-if="isLoading" class="loading-overlay">
-      <div class="loading-spinner">
-        <div class="spinner"></div>
-        <p>Loading...</p>
-      </div>
-    </div>
-
-    <!-- Notification Toast -->
-    <div
-      v-if="notification"
-      class="notification-toast"
-      :class="notification.type"
-    >
-      <div class="toast-content">
-        <i class="toast-icon">{{ getNotificationIcon(notification.type) }}</i>
-        <div class="toast-text">
-          <div v-if="notification.title" class="toast-title">
-            {{ notification.title }}
+    <main class="relative">
+      <!-- Emergency Alert -->
+      <div 
+        v-if="emergencyAlert"
+        class="fixed top-0 left-0 right-0 z-50 bg-red-500 text-white p-4 animate-slide-down"
+      >
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <span class="text-2xl">⚠️</span>
+              <p class="font-medium">{{ emergencyAlert.message }}</p>
+            </div>
+            <button 
+              @click="dismissAlert"
+              class="p-1 hover:bg-white/20 rounded-lg transition-colors"
+            >
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
-          <div class="toast-message">{{ notification.message }}</div>
         </div>
-        <button @click="dismissNotification" class="toast-close">×</button>
       </div>
-    </div>
+
+      <!-- Router View -->
+      <router-view v-slot="{ Component }">
+        <transition name="fade" mode="out-in">
+          <component :is="Component" />
+        </transition>
+      </router-view>
+    </main>
   </div>
 </template>
 
-<style scoped>
-/* Global Styles */
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+<style>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
 }
 
-#app {
-  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-  min-height: 100vh;
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 
-/* Demo Controls */
-.demo-controls {
-  background: rgba(0, 0, 0, 0.9);
-  color: white;
-  padding: 0.5rem 1rem;
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 2000;
-  text-align: center;
-}
-
-.demo-switcher {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 1rem;
-}
-
-.demo-label {
-  font-weight: 600;
-  font-size: 0.9rem;
-}
-
-.demo-btn {
-  padding: 0.25rem 0.75rem;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  background: rgba(255, 255, 255, 0.1);
-  color: white;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.8rem;
-  text-transform: capitalize;
-  transition: all 0.2s ease;
-}
-
-.demo-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-.demo-btn.active {
-  background: #667eea;
-  border-color: #667eea;
-}
-
-/* Navigation Styles */
-.navbar {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-  position: sticky;
-  top: 40px; /* Account for demo controls */
-  z-index: 1000;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-}
-
-.nav-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 1rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 70px;
-}
-
-.nav-brand h2 {
-  color: #2c3e50;
-  font-size: 1.5rem;
-  font-weight: 700;
-}
-
-.nav-menu {
-  display: flex;
-  align-items: center;
-  gap: 2rem;
-}
-
-.nav-link {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  text-decoration: none;
-  color: #2c3e50;
-  border-radius: 8px;
-  transition: all 0.3s ease;
-  position: relative;
-  font-weight: 500;
-}
-
-.nav-link:hover {
-  background: rgba(102, 126, 234, 0.1);
-  color: #667eea;
-}
-
-.nav-link.router-link-active {
-  background: #667eea;
-  color: white;
-}
-
-.icon {
-  font-size: 1.2rem;
-}
-
-.badge {
-  background: #e74c3c;
-  color: white;
-  border-radius: 50%;
-  padding: 0.2rem 0.5rem;
-  font-size: 0.8rem;
-  min-width: 1.5rem;
-  text-align: center;
-}
-
-/* Dropdown Styles */
-.nav-dropdown {
-  position: relative;
-}
-
-.dropdown-toggle {
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-
-.dropdown-arrow {
-  margin-left: 0.5rem;
-  transition: transform 0.3s ease;
-}
-
-.dropdown-menu {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-  min-width: 220px;
-  padding: 0.5rem 0;
-  margin-top: 0.5rem;
-  z-index: 1000;
-}
-
-.user-info {
-  padding: 1rem;
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-}
-
-.user-avatar {
-  width: 40px;
-  height: 40px;
-  background: #667eea;
-  color: white;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 600;
-  font-size: 1.1rem;
-}
-
-.user-details {
-  flex: 1;
-}
-
-.user-name {
-  font-weight: 600;
-  color: #2c3e50;
-  margin-bottom: 0.25rem;
-}
-
-.user-role {
-  font-size: 0.85rem;
-  color: #666;
-  text-transform: capitalize;
-}
-
-.dropdown-item {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  width: 100%;
-  padding: 0.75rem 1rem;
-  text-decoration: none;
-  color: #2c3e50;
-  border: none;
-  background: none;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-size: 0.95rem;
-}
-
-.dropdown-item:hover {
-  background: rgba(102, 126, 234, 0.1);
-  color: #667eea;
-}
-
-.dropdown-divider {
-  height: 1px;
-  background: rgba(0, 0, 0, 0.1);
-  margin: 0.5rem 0;
-}
-
-.logout-btn {
-  color: #e74c3c;
-}
-
-.logout-btn:hover {
-  background: rgba(231, 76, 60, 0.1);
-  color: #e74c3c;
-}
-
-/* Mobile Menu */
-.mobile-menu-btn {
-  display: none;
-  flex-direction: column;
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 0.5rem;
-}
-
-.mobile-menu-btn span {
-  width: 25px;
-  height: 3px;
-  background: #2c3e50;
-  margin: 3px 0;
-  transition: 0.3s;
-}
-
-/* Emergency Alert */
-.emergency-alert {
-  background: linear-gradient(45deg, #e74c3c, #c0392b);
-  color: white;
-  padding: 1rem;
-  animation: pulse 2s infinite;
-  margin-top: 40px; /* Account for demo controls */
-}
-
-.alert-content {
-  max-width: 1200px;
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.alert-icon {
-  font-size: 1.5rem;
-  animation: bounce 1s infinite;
-}
-
-.alert-text {
-  flex: 1;
-}
-
-.alert-close {
-  background: none;
-  border: none;
-  color: white;
-  font-size: 1.5rem;
-  cursor: pointer;
-  padding: 0.25rem;
-}
-
-/* Main Content */
-.main-content {
-  min-height: calc(100vh - 110px); /* Account for navbar + demo controls */
-  padding: 2rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-}
-
-.main-content.no-nav {
-  min-height: calc(100vh - 40px); /* Only demo controls */
-  padding: 0;
-  background: none;
-}
-
-/* Loading Overlay */
-.loading-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 9999;
-}
-
-.loading-spinner {
-  background: white;
-  padding: 2rem;
-  border-radius: 12px;
-  text-align: center;
-}
-
-.spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid #f3f3f3;
-  border-top: 4px solid #667eea;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin: 0 auto 1rem;
-}
-
-/* Notification Toast */
-.notification-toast {
-  position: fixed;
-  top: 130px; /* Account for navbar + demo controls */
-  right: 20px;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-  z-index: 1001;
-  min-width: 300px;
-  max-width: 400px;
-  animation: slideIn 0.3s ease;
-}
-
-.notification-toast.success {
-  border-left: 4px solid #27ae60;
-}
-
-.notification-toast.error {
-  border-left: 4px solid #e74c3c;
-}
-
-.notification-toast.warning {
-  border-left: 4px solid #f39c12;
-}
-
-.notification-toast.info {
-  border-left: 4px solid #3498db;
-}
-
-.toast-content {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
-  padding: 1rem;
-}
-
-.toast-text {
-  flex: 1;
-  min-width: 0;
-}
-
-.toast-title {
-  font-weight: 600;
-  margin-bottom: 0.25rem;
-  color: #2c3e50;
-}
-
-.toast-message {
-  font-size: 0.9rem;
-  color: #666;
-  line-height: 1.4;
-  word-wrap: break-word;
-}
-
-.toast-icon {
-  font-size: 1.2rem;
-}
-
-.toast-close {
-  background: none;
-  border: none;
-  font-size: 1.2rem;
-  cursor: pointer;
-  color: #7f8c8d;
-  margin-left: auto;
-}
-
-/* Animations */
-@keyframes spin {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes pulse {
-  0% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.8;
-  }
-  100% {
-    opacity: 1;
-  }
-}
-
-@keyframes bounce {
-  0%,
-  20%,
-  50%,
-  80%,
-  100% {
-    transform: translateY(0);
-  }
-  40% {
-    transform: translateY(-10px);
-  }
-  60% {
-    transform: translateY(-5px);
-  }
-}
-
-@keyframes slideIn {
+@keyframes slide-down {
   from {
-    transform: translateX(100%);
-    opacity: 0;
+    transform: translateY(-100%);
   }
   to {
-    transform: translateX(0);
-    opacity: 1;
+    transform: translateY(0);
   }
 }
 
-/* Responsive Design */
-@media (max-width: 768px) {
-  .mobile-menu-btn {
-    display: flex;
-  }
-
-  .nav-menu {
-    position: fixed;
-    top: 110px; /* Account for navbar + demo controls */
-    left: -100%;
-    width: 100%;
-    height: calc(100vh - 110px);
-    background: white;
-    flex-direction: column;
-    align-items: flex-start;
-    padding: 2rem;
-    transition: left 0.3s ease;
-    gap: 1rem;
-  }
-
-  .nav-menu.active {
-    left: 0;
-  }
-
-  .nav-link {
-    width: 100%;
-    justify-content: flex-start;
-  }
-
-  .main-content {
-    padding: 1rem;
-  }
-
-  .notification-toast {
-    right: 10px;
-    left: 10px;
-    top: 120px;
-  }
-
-  .demo-switcher {
-    flex-wrap: wrap;
-    gap: 0.5rem;
-  }
-
-  .demo-btn {
-    font-size: 0.7rem;
-    padding: 0.2rem 0.5rem;
-  }
+.animate-slide-down {
+  animation: slide-down 0.3s ease-out forwards;
 }
 </style>
